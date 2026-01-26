@@ -1135,18 +1135,6 @@ def create_team_scatter_chart():
     x_pad = (x_max - x_min) * 0.15
     y_pad = (y_max - y_min) * 0.15
 
-    # Add quadrant labels as annotations
-    fig.add_annotation(
-        x=x_min - x_pad * 0.3, y=y_max + y_pad * 0.3,
-        text=":(", font=dict(size=24, color='#94A3B8'),
-        showarrow=False, xanchor='left', yanchor='bottom'
-    )
-    fig.add_annotation(
-        x=x_max + x_pad * 0.3, y=y_min - y_pad * 0.3,
-        text=":)", font=dict(size=24, color='#94A3B8'),
-        showarrow=False, xanchor='right', yanchor='top'
-    )
-
     # Add average lines
     avg_xg = sum(xg_per90) / len(xg_per90)
     avg_xga = sum(xga_per90) / len(xga_per90)
@@ -1158,7 +1146,6 @@ def create_team_scatter_chart():
     layout['yaxis']['title'] = 'xGA per 90'
     layout['xaxis']['range'] = [x_min - x_pad, x_max + x_pad]
     layout['yaxis']['range'] = [y_min - y_pad, y_max + y_pad]
-    layout['yaxis']['autorange'] = 'reversed'  # Lower xGA is better (top)
     layout['margin'] = dict(l=60, r=30, t=50, b=50)
 
     fig.update_layout(**layout)
