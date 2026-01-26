@@ -80,7 +80,10 @@ def predict_xg(model, X):
     Returns:
         Array of xG values (probabilities)
     """
-    return model.predict_proba(X)[:, 1]
+    # Convert to numpy array to avoid XGBoost 3.x feature name mismatch issues
+    import numpy as np
+    X_arr = np.asarray(X)
+    return model.predict_proba(X_arr)[:, 1]
 
 
 def save_model(model, filename="xg_model.joblib"):
