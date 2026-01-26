@@ -345,11 +345,19 @@ else:
     metrics = {}
 
 
-# Compute SHAP values once at startup
-SHAP_VALUES = None
-SHAP_DATA = None
+# SHAP values computed lazily on first request
+_shap_cache = {'values': None, 'data': None, 'computed': False}
 
-if DATA_LOADED and model is not None:
+
+def _compute_shap_values():
+    """Compute SHAP values lazily (only when needed)."""
+    if _shap_cache['computed']:
+        return _shap_cache['values'], _shap_cache['data']
+
+    if not DATA_LOADED or model is None:
+        _shap_cache['computed'] = True
+        return None, None
+
     try:
         print("Computing SHAP values...")
         # Get test data
@@ -357,18 +365,21 @@ if DATA_LOADED and model is not None:
         X_test = test_df[FEATURE_COLUMNS]
 
         # Extract base XGBoost estimator from CalibratedClassifierCV
-        # Use first calibrated classifier's base estimator
         base_model = model.calibrated_classifiers_[0].estimator
 
         # Compute SHAP values using TreeExplainer (raw log-odds output)
+        import numpy as np
         explainer = shap.TreeExplainer(base_model)
-        SHAP_VALUES = explainer.shap_values(X_test)
-        SHAP_DATA = X_test
+        _shap_cache['values'] = explainer.shap_values(np.asarray(X_test))
+        _shap_cache['data'] = X_test
         print("SHAP values computed.")
     except Exception as e:
         print(f"Could not compute SHAP values: {e}")
-        SHAP_VALUES = None
-        SHAP_DATA = None
+        _shap_cache['values'] = None
+        _shap_cache['data'] = None
+
+    _shap_cache['computed'] = True
+    return _shap_cache['values'], _shap_cache['data']
 
 
 def get_chart_layout(title='', height=350, show_legend=True, legend_pos='top'):
@@ -421,7 +432,8 @@ def get_chart_layout(title='', height=350, show_legend=True, legend_pos='top'):
 
 def create_shap_summary_image():
     """Create SHAP summary (beeswarm) plot showing feature effects on xG."""
-    if SHAP_VALUES is None or SHAP_DATA is None:
+    shap_values, shap_data = _compute_shap_values()
+    if shap_values is None or shap_data is None:
         return None
 
     # Create figure with updated styling
@@ -432,8 +444,8 @@ def create_shap_summary_image():
 
     # Create SHAP summary plot with diverging colormap
     shap.summary_plot(
-        SHAP_VALUES,
-        SHAP_DATA,
+        shap_values,
+        shap_data,
         feature_names=feature_names,
         show=False,
         plot_size=None,
@@ -1357,11 +1369,11 @@ app.layout = html.Div([
                     dbc.CardHeader(html.H4("SHAP Feature Impact", className="mb-0")),
                     dbc.CardBody([
                         html.Img(
-                            src=create_shap_summary_image(),
+                            id='shap-image',
                             style={'maxWidth': '100%', 'height': 'auto'},
                             className="mx-auto d-block"
-                        ) if SHAP_VALUES is not None else html.P("SHAP analysis not available.",
-                                                                  className="text-muted")
+                        ) if DATA_LOADED else html.P("SHAP analysis not available.",
+                                                      className="text-muted")
                     ], className="py-2")
                 ], className="chart-card mb-4")
             ], lg=5),
@@ -1604,6 +1616,16 @@ def update_player_stats(player_name):
             for label, value, color_class in stat_items
         ], className="player-stats-row")
     ])
+
+
+@callback(
+    Output('shap-image', 'src'),
+    Input('player-dropdown', 'value'),  # Triggers after page load
+    prevent_initial_call=False
+)
+def update_shap_image(_):
+    """Load SHAP image lazily after page renders."""
+    return create_shap_summary_image()
 
 
 def run_app(debug=True, port=8050):
