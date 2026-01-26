@@ -1181,6 +1181,7 @@ def create_team_scatter_chart():
     layout['xaxis']['range'] = [x_min - x_pad, x_max + x_pad]
     layout['yaxis']['range'] = [y_min - y_pad, y_max + y_pad]
     layout['margin'] = dict(l=60, r=30, t=50, b=50)
+    layout['showlegend'] = False
 
     fig.update_layout(**layout)
 
