@@ -34,15 +34,5 @@
     "colsample_bytree": 0.9629976096550718,
     "reg_alpha": 0.10276156361956654,
     "reg_lambda": 1.021592169559238
-  },
-  "griezmann": {
-    "player": "Antoine Griezmann",
-    "total_shots": 92,
-    "total_goals": 22,
-    "conversion_rate": 0.2391304347826087,
-    "statsbomb_xg": 15.968187153,
-    "goals_minus_sb_xg": 6.031812846999999,
-    "our_xg": 14.797811131924393,
-    "goals_minus_our_xg": 7.202188868075607
   }
 }
