@@ -1111,10 +1111,53 @@ def create_team_scatter_chart():
 
     # Calculate per 90 values
     teams = list(team_stats.keys())
-    xg_per90 = [team_stats[t]['xg_for'] / team_stats[t]['n_games'] for t in teams]
-    xga_per90 = [team_stats[t]['xg_against'] / team_stats[t]['n_games'] for t in teams]
+    xg_per90 = np.array([team_stats[t]['xg_for'] / team_stats[t]['n_games'] for t in teams])
+    xga_per90 = np.array([team_stats[t]['xg_against'] / team_stats[t]['n_games'] for t in teams])
 
     fig = go.Figure()
+
+    # Calculate axis ranges first (needed for regression line)
+    x_min, x_max = xg_per90.min(), xg_per90.max()
+    y_min, y_max = xga_per90.min(), xga_per90.max()
+    x_pad = (x_max - x_min) * 0.15
+    y_pad = (y_max - y_min) * 0.15
+
+    # Linear regression with confidence interval
+    n = len(xg_per90)
+    slope, intercept = np.polyfit(xg_per90, xga_per90, 1)
+    x_line = np.linspace(x_min - x_pad, x_max + x_pad, 100)
+    y_line = slope * x_line + intercept
+
+    # Calculate confidence interval
+    x_mean = xg_per90.mean()
+    residuals = xga_per90 - (slope * xg_per90 + intercept)
+    se = np.sqrt(np.sum(residuals**2) / (n - 2))
+    ss_x = np.sum((xg_per90 - x_mean)**2)
+    se_fit = se * np.sqrt(1/n + (x_line - x_mean)**2 / ss_x)
+    t_val = 1.96  # ~95% CI
+    y_upper = y_line + t_val * se_fit
+    y_lower = y_line - t_val * se_fit
+
+    # Add confidence interval (shaded area)
+    fig.add_trace(go.Scatter(
+        x=np.concatenate([x_line, x_line[::-1]]),
+        y=np.concatenate([y_upper, y_lower[::-1]]),
+        fill='toself',
+        fillcolor='rgba(37, 99, 235, 0.15)',
+        line=dict(color='rgba(0,0,0,0)'),
+        hoverinfo='skip',
+        showlegend=False
+    ))
+
+    # Add regression line
+    fig.add_trace(go.Scatter(
+        x=x_line,
+        y=y_line,
+        mode='lines',
+        line=dict(color='rgba(37, 99, 235, 0.6)', width=2),
+        hoverinfo='skip',
+        showlegend=False
+    ))
 
     # Add scatter points
     fig.add_trace(go.Scatter(
@@ -1123,7 +1166,7 @@ def create_team_scatter_chart():
         mode='markers+text',
         text=teams,
         textposition='top center',
-        textfont=dict(size=8, color=COLORS['text_secondary']),
+        textfont=dict(size=10, color=COLORS['text_secondary']),
         marker=dict(
             size=12,
             color=COLORS['accent_primary'],
@@ -1131,18 +1174,6 @@ def create_team_scatter_chart():
         ),
         hovertemplate='<b>%{text}</b><br>xG/90: %{x:.2f}<br>xGA/90: %{y:.2f}<extra></extra>'
     ))
-
-    # Calculate axis ranges
-    x_min, x_max = min(xg_per90), max(xg_per90)
-    y_min, y_max = min(xga_per90), max(xga_per90)
-    x_pad = (x_max - x_min) * 0.15
-    y_pad = (y_max - y_min) * 0.15
-
-    # Add average lines
-    avg_xg = sum(xg_per90) / len(xg_per90)
-    avg_xga = sum(xga_per90) / len(xga_per90)
-    fig.add_hline(y=avg_xga, line=dict(color='#E2E8F0', width=1, dash='dash'))
-    fig.add_vline(x=avg_xg, line=dict(color='#E2E8F0', width=1, dash='dash'))
 
     layout = get_chart_layout('xG Created vs Conceded (per 90)', height=550)
     layout['xaxis']['title'] = 'xG per 90'
