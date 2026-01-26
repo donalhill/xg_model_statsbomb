@@ -1,0 +1,48 @@
+{
+  "roc_auc": 0.8314256798916434,
+  "brier": 0.0807127572715163,
+  "log_loss": 0.27676677684766415,
+  "n_shots": 5006,
+  "n_goals": 596,
+  "total_xg": 563.5536706695304,
+  "sb_roc_auc": 0.8350081419592444,
+  "sb_brier": 0.08031604654222323,
+  "sb_log_loss": 0.2749867076949697,
+  "sb_total_xg": 555.1946033759,
+  "feature_importance": {
+    "goal_visible_pct": 0.17835313081741333,
+    "distance_to_goal": 0.1437176614999771,
+    "angle_to_goal": 0.13946186006069183,
+    "is_header": 0.1196017935872078,
+    "gk_distance_from_goal_line": 0.08302338421344757,
+    "dist_nearest_defender": 0.05632730573415756,
+    "under_pressure": 0.04510076344013214,
+    "gk_positioning_error": 0.04347342625260353,
+    "is_counter": 0.04083156958222389,
+    "is_first_time": 0.04035899415612221,
+    "dist_nearest_blocker": 0.03970245271921158,
+    "gk_distance_from_center": 0.035595931112766266,
+    "is_set_piece": 0.03445161134004593,
+    "is_penalty": 0.0
+  },
+  "hyperparameters": {
+    "n_estimators": 343,
+    "max_depth": 3,
+    "learning_rate": 0.01950887809816843,
+    "min_child_weight": 3,
+    "subsample": 0.8846788367732265,
+    "colsample_bytree": 0.9629976096550718,
+    "reg_alpha": 0.10276156361956654,
+    "reg_lambda": 1.021592169559238
+  },
+  "griezmann": {
+    "player": "Antoine Griezmann",
+    "total_shots": 92,
+    "total_goals": 22,
+    "conversion_rate": 0.2391304347826087,
+    "statsbomb_xg": 15.968187153,
+    "goals_minus_sb_xg": 6.031812846999999,
+    "our_xg": 14.797811131924393,
+    "goals_minus_our_xg": 7.202188868075607
+  }
+}

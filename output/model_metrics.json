@@ -1,0 +1,35 @@
+{
+  "basic_model": {
+    "model": "XGBoost Basic",
+    "roc_auc": 0.7557841494891686,
+    "brier_score": 0.18030305436302652,
+    "log_loss": 0.5209617123053417,
+    "avg_precision": 0.3269841081764218,
+    "mean_predicted_xg": 0.3497990369796753,
+    "actual_goal_rate": 0.09311294765840221
+  },
+  "calibrated_model": {
+    "model": "XGBoost Calibrated",
+    "roc_auc": 0.7623897272929894,
+    "brier_score": 0.07423763542299187,
+    "log_loss": 0.2665099680415911,
+    "avg_precision": 0.33850029714866375,
+    "mean_predicted_xg": 0.1064050962028835,
+    "actual_goal_rate": 0.09311294765840221
+  },
+  "advanced_model": {
+    "model": "XGBoost Advanced",
+    "roc_auc": 0.7890756465371063,
+    "brier_score": 0.151059686327251,
+    "log_loss": 0.4546816763003961,
+    "avg_precision": 0.38044755547971715,
+    "mean_predicted_xg": 0.3117830753326416,
+    "actual_goal_rate": 0.1054083885209713
+  },
+  "statsbomb": {
+    "model": "StatsBomb",
+    "roc_auc": 0.8327895825926837,
+    "brier_score": 0.07363374492866555,
+    "log_loss": 0.255478152447865
+  }
+}

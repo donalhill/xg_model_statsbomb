@@ -1,0 +1,2 @@
+# See statsbomb_xg/requirements.txt for full dependencies
+-r statsbomb_xg/requirements.txt

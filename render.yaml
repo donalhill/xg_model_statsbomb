@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: xg-dashboard
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn statsbomb_xg.app:server
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+      - key: RENDER
+        value: "true"
