@@ -1104,27 +1104,42 @@ def create_team_bar_chart(metric='xg_diff'):
     return fig
 
 
-def create_team_scatter_chart():
-    """Create scatter plot of xG per 90 vs xGA per 90."""
+def create_team_scatter_chart(metric='xg'):
+    """Create scatter plot of xG or Goals per 90 vs conceded."""
     team_stats = _get_team_stats('our_xg')
     if not team_stats:
         return go.Figure()
 
-    # Calculate per 90 values
     teams = list(team_stats.keys())
-    xg_per90 = np.array([team_stats[t]['xg_for'] / team_stats[t]['n_games'] for t in teams])
-    xga_per90 = np.array([team_stats[t]['xg_against'] / team_stats[t]['n_games'] for t in teams])
+
+    # Calculate per 90 values based on metric
+    if metric == 'goals':
+        x_vals = np.array([team_stats[t]['goals_for'] / team_stats[t]['n_games'] for t in teams])
+        y_vals = np.array([team_stats[t]['goals_against'] / team_stats[t]['n_games'] for t in teams])
+        x_label = 'Goals per 90'
+        y_label = 'Conceded per 90'
+        title = 'Goals Scored vs Conceded (per 90)'
+        hover_x = 'Goals/90'
+        hover_y = 'Conceded/90'
+    else:
+        x_vals = np.array([team_stats[t]['xg_for'] / team_stats[t]['n_games'] for t in teams])
+        y_vals = np.array([team_stats[t]['xg_against'] / team_stats[t]['n_games'] for t in teams])
+        x_label = 'xG per 90'
+        y_label = 'xGA per 90'
+        title = 'xG Created vs Conceded (per 90)'
+        hover_x = 'xG/90'
+        hover_y = 'xGA/90'
 
     fig = go.Figure()
 
     # Calculate axis ranges first (needed for regression line)
-    x_min, x_max = xg_per90.min(), xg_per90.max()
-    y_min, y_max = xga_per90.min(), xga_per90.max()
+    x_min, x_max = x_vals.min(), x_vals.max()
+    y_min, y_max = y_vals.min(), y_vals.max()
     x_pad = (x_max - x_min) * 0.15
     y_pad = (y_max - y_min) * 0.15
 
     # Robust regression (Theil-Sen) - less sensitive to outliers like Barca
-    slope, intercept, _, _ = theilslopes(xga_per90, xg_per90)
+    slope, intercept, _, _ = theilslopes(y_vals, x_vals)
     x_line = np.linspace(x_min - x_pad, x_max + x_pad, 100)
     y_line = slope * x_line + intercept
 
@@ -1140,8 +1155,8 @@ def create_team_scatter_chart():
 
     # Add scatter points
     fig.add_trace(go.Scatter(
-        x=xg_per90,
-        y=xga_per90,
+        x=x_vals,
+        y=y_vals,
         mode='markers+text',
         text=teams,
         textposition='top center',
@@ -1151,12 +1166,12 @@ def create_team_scatter_chart():
             color=COLORS['accent_primary'],
             line=dict(color='white', width=1)
         ),
-        hovertemplate='<b>%{text}</b><br>xG/90: %{x:.2f}<br>xGA/90: %{y:.2f}<extra></extra>'
+        hovertemplate='<b>%{text}</b><br>' + hover_x + ': %{x:.2f}<br>' + hover_y + ': %{y:.2f}<extra></extra>'
     ))
 
-    layout = get_chart_layout('xG Created vs Conceded (per 90)', height=550)
-    layout['xaxis']['title'] = 'xG per 90'
-    layout['yaxis']['title'] = 'xGA per 90'
+    layout = get_chart_layout(title, height=550)
+    layout['xaxis']['title'] = x_label
+    layout['yaxis']['title'] = y_label
     layout['xaxis']['range'] = [x_min - x_pad, x_max + x_pad]
     layout['yaxis']['range'] = [y_min - y_pad, y_max + y_pad]
     layout['margin'] = dict(l=60, r=30, t=50, b=50)
@@ -1538,7 +1553,18 @@ app.layout = html.Div([
             ], lg=6),
             dbc.Col([
                 dbc.Card([
-                    dbc.CardHeader(html.H5("xG Created vs Conceded", className="mb-0")),
+                    dbc.CardHeader([
+                        dcc.Dropdown(
+                            id='scatter-metric-dropdown',
+                            options=[
+                                {'label': 'xG vs xGA', 'value': 'xg'},
+                                {'label': 'Goals vs Conceded', 'value': 'goals'},
+                            ],
+                            value='xg',
+                            clearable=False,
+                            style={'width': '180px'}
+                        )
+                    ]),
                     dbc.CardBody([
                         dcc.Graph(id='team-scatter-chart', config={'displayModeBar': False})
                     ])
@@ -1660,10 +1686,10 @@ def update_team_bar_chart(metric):
 
 @callback(
     Output('team-scatter-chart', 'figure'),
-    Input('team-metric-dropdown', 'value')  # Trigger on page load
+    Input('scatter-metric-dropdown', 'value')
 )
-def update_team_scatter_chart(_):
-    return create_team_scatter_chart()
+def update_team_scatter_chart(metric):
+    return create_team_scatter_chart(metric)
 
 
 @callback(
