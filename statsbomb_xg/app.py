@@ -1124,26 +1124,9 @@ def create_team_scatter_chart():
     y_pad = (y_max - y_min) * 0.15
 
     # Robust regression (Theil-Sen) - less sensitive to outliers like Barca
-    n = len(xg_per90)
-    slope, intercept, slope_lo, slope_hi = theilslopes(xga_per90, xg_per90)
+    slope, intercept, _, _ = theilslopes(xga_per90, xg_per90)
     x_line = np.linspace(x_min - x_pad, x_max + x_pad, 100)
     y_line = slope * x_line + intercept
-
-    # Confidence interval using slope uncertainty
-    x_mean = xg_per90.mean()
-    y_upper = slope_hi * (x_line - x_mean) + (slope * x_mean + intercept)
-    y_lower = slope_lo * (x_line - x_mean) + (slope * x_mean + intercept)
-
-    # Add confidence interval (shaded area)
-    fig.add_trace(go.Scatter(
-        x=np.concatenate([x_line, x_line[::-1]]),
-        y=np.concatenate([y_upper, y_lower[::-1]]),
-        fill='toself',
-        fillcolor='rgba(37, 99, 235, 0.15)',
-        line=dict(color='rgba(0,0,0,0)'),
-        hoverinfo='skip',
-        showlegend=False
-    ))
 
     # Add regression line
     fig.add_trace(go.Scatter(
