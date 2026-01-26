@@ -613,10 +613,6 @@ def create_xg_histogram_figure(model='our_xg'):
 
     fig = go.Figure()
 
-    # Compute histogram for misses manually to add outline
-    bin_edges = np.arange(0, 1.1, 0.1)
-    miss_counts, _ = np.histogram(misses, bins=bin_edges, density=True)
-
     # Histogram for misses - darker gray fill with outline
     fig.add_trace(go.Histogram(
         x=misses,
@@ -624,10 +620,10 @@ def create_xg_histogram_figure(model='our_xg'):
         marker_color='rgba(100, 116, 139, 0.6)',
         marker_line=dict(color='#475569', width=1.5),
         xbins=dict(start=0, end=1, size=0.1),
-        histnorm='probability density'
+        histnorm='percent'
     ))
 
-    # Histogram for goals - blue with more transparency
+    # Histogram for goals
     fig.add_trace(go.Histogram(
         x=goals,
         name='Goal',
@@ -635,12 +631,12 @@ def create_xg_histogram_figure(model='our_xg'):
         marker_line=dict(color=COLORS['accent_primary'], width=1),
         opacity=0.65,
         xbins=dict(start=0, end=1, size=0.1),
-        histnorm='probability density'
+        histnorm='percent'
     ))
 
     layout = get_chart_layout(f'xG Distribution: {model_name}', height=350)
     layout['xaxis']['title'] = 'xG'
-    layout['yaxis']['title'] = 'Density'
+    layout['yaxis']['title'] = 'Percentage (%)'
     layout['xaxis']['range'] = [0, 1]
     layout['barmode'] = 'overlay'
     layout['legend'] = dict(x=0.7, y=0.95, bgcolor='rgba(255,255,255,0.9)',
