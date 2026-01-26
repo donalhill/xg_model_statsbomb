@@ -436,6 +436,9 @@ def create_shap_summary_image():
     if shap_values is None or shap_data is None:
         return None
 
+    # Clear any existing figures to prevent contamination
+    plt.close('all')
+
     # Create figure with updated styling
     fig, ax = plt.subplots(figsize=(8, 6))
 
