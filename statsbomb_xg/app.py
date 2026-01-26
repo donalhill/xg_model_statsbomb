@@ -18,6 +18,7 @@ import matplotlib.pyplot as plt
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 from mplsoccer import VerticalPitch
 from scipy.ndimage import gaussian_filter
+from scipy.stats import theilslopes
 from PIL import Image
 import urllib.request
 
@@ -1122,21 +1123,16 @@ def create_team_scatter_chart():
     x_pad = (x_max - x_min) * 0.15
     y_pad = (y_max - y_min) * 0.15
 
-    # Linear regression with confidence interval
+    # Robust regression (Theil-Sen) - less sensitive to outliers like Barca
     n = len(xg_per90)
-    slope, intercept = np.polyfit(xg_per90, xga_per90, 1)
+    slope, intercept, slope_lo, slope_hi = theilslopes(xga_per90, xg_per90)
     x_line = np.linspace(x_min - x_pad, x_max + x_pad, 100)
     y_line = slope * x_line + intercept
 
-    # Calculate confidence interval
+    # Confidence interval using slope uncertainty
     x_mean = xg_per90.mean()
-    residuals = xga_per90 - (slope * xg_per90 + intercept)
-    se = np.sqrt(np.sum(residuals**2) / (n - 2))
-    ss_x = np.sum((xg_per90 - x_mean)**2)
-    se_fit = se * np.sqrt(1/n + (x_line - x_mean)**2 / ss_x)
-    t_val = 1.96  # ~95% CI
-    y_upper = y_line + t_val * se_fit
-    y_lower = y_line - t_val * se_fit
+    y_upper = slope_hi * (x_line - x_mean) + (slope * x_mean + intercept)
+    y_lower = slope_lo * (x_line - x_mean) + (slope * x_mean + intercept)
 
     # Add confidence interval (shaded area)
     fig.add_trace(go.Scatter(
