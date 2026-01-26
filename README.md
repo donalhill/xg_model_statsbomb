@@ -66,7 +66,7 @@ Open http://localhost:8050
 | AUC | 0.83 | 0.84 |
 | Brier Score | 0.081 | 0.080 |
 
-Near-parity with StatsBomb's xG. The small gap is likely due to shot height data not available in the open dataset.
+Near-parity with StatsBomb's xG. The small gap is expected given we train on only half a season (~4,500 shots) while StatsBomb uses years of data across multiple leagues. Shot height data is also not available in the open dataset.
 
 ## Features Used
 
