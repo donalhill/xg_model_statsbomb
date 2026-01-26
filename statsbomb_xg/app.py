@@ -1069,13 +1069,111 @@ def create_team_xg_diff_chart(xg_column='our_xg'):
     x_padding = 0.3
     x_range = [min_xg - x_padding, max_xg + x_padding]
 
-    model_name = 'Our Model' if xg_column == 'our_xg' else 'StatsBomb'
-    layout = get_chart_layout(f'Team xG Difference per 90 ({model_name})', height=700)
-    layout['xaxis']['title'] = 'xG Diff per 90 (xG For − xG Against)'
+    layout = get_chart_layout('', height=600)
+    layout['xaxis']['title'] = 'xG Diff per 90'
     layout['xaxis']['range'] = x_range
     layout['yaxis']['title'] = ''
     layout['yaxis']['autorange'] = 'reversed'  # Best at top
-    layout['margin'] = dict(l=140, r=60, t=60, b=50)
+    layout['margin'] = dict(l=120, r=50, t=30, b=40)
+
+    fig.update_layout(**layout)
+
+    return fig
+
+
+def create_team_goals_vs_xg_chart(xg_column='our_xg', chart_type='scored'):
+    """Create ranked bar chart of Goals - xG (scored or conceded)."""
+    if not DATA_LOADED:
+        return go.Figure()
+
+    # Use test set
+    test_df = df[df['match_date'] >= '2016-01-01']
+
+    # Calculate stats per match for each team
+    team_match_stats = {}
+
+    for match_id in test_df['match_id'].unique():
+        match_df = test_df[test_df['match_id'] == match_id]
+        teams = match_df['team'].unique()
+        if len(teams) != 2:
+            continue
+
+        for team in teams:
+            if team not in team_match_stats:
+                team_match_stats[team] = {
+                    'goals_for': 0, 'goals_against': 0,
+                    'xg_for': 0, 'xg_against': 0, 'n_games': 0
+                }
+
+            team_shots = match_df[match_df['team'] == team]
+            opp_shots = match_df[match_df['team'] != team]
+
+            team_match_stats[team]['goals_for'] += team_shots['is_goal'].sum()
+            team_match_stats[team]['goals_against'] += opp_shots['is_goal'].sum()
+            team_match_stats[team]['xg_for'] += team_shots[xg_column].sum()
+            team_match_stats[team]['xg_against'] += opp_shots[xg_column].sum()
+            team_match_stats[team]['n_games'] += 1
+
+    # Calculate per 90 values
+    if chart_type == 'scored':
+        team_values = {
+            team: (stats['goals_for'] - stats['xg_for']) / stats['n_games']
+            for team, stats in team_match_stats.items()
+        }
+        title = 'Goals − xG (Scored)'
+        xlabel = 'Goals − xG per 90'
+    else:  # conceded
+        # For conceded: negative means conceding LESS than expected (good defense)
+        team_values = {
+            team: (stats['xg_against'] - stats['goals_against']) / stats['n_games']
+            for team, stats in team_match_stats.items()
+        }
+        title = 'xGA − Goals (Conceded)'
+        xlabel = 'xGA − Goals per 90'
+
+    # Sort (best at top)
+    sorted_teams = sorted(team_values.items(), key=lambda x: x[1], reverse=True)
+    teams = [t[0] for t in sorted_teams]
+    values = [t[1] for t in sorted_teams]
+
+    # Create colors
+    max_abs = max(abs(min(values)), abs(max(values))) if values else 1
+    colors = []
+    for val in values:
+        norm = val / max_abs if max_abs > 0 else 0
+        if norm >= 0:
+            intensity = norm
+            colors.append(f'rgba(37, 99, 235, {0.4 + 0.6 * intensity})')
+        else:
+            intensity = -norm
+            colors.append(f'rgba(239, 68, 68, {0.4 + 0.6 * intensity})')
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Bar(
+        y=teams,
+        x=values,
+        orientation='h',
+        marker=dict(color=colors, line=dict(color='white', width=1)),
+        text=[f'{v:+.2f}' for v in values],
+        textposition='outside',
+        textfont=dict(size=9, color=COLORS['text_secondary']),
+        hovertemplate='<b>%{y}</b><br>' + xlabel + ': %{x:+.2f}<extra></extra>'
+    ))
+
+    fig.add_vline(x=0, line=dict(color=COLORS['text_secondary'], width=1))
+
+    min_val = min(values) if values else 0
+    max_val = max(values) if values else 0
+    x_padding = 0.25
+    x_range = [min_val - x_padding, max_val + x_padding]
+
+    layout = get_chart_layout(title, height=600)
+    layout['xaxis']['title'] = xlabel
+    layout['xaxis']['range'] = x_range
+    layout['yaxis']['title'] = ''
+    layout['yaxis']['autorange'] = 'reversed'
+    layout['margin'] = dict(l=120, r=50, t=50, b=40)
 
     fig.update_layout(**layout)
 
@@ -1422,37 +1520,38 @@ app.layout = html.Div([
             ])
         ]),
 
-        # Team Analysis section
+        # Team Analysis section - three charts side by side
+        dbc.Row([
+            dbc.Col([
+                html.H4("Team Performance vs Expected", className="mb-2"),
+                html.Small("Test set: Jan–May 2016 | Using Our Model", className="text-muted d-block mb-3"),
+            ], width=12),
+        ]),
         dbc.Row([
             dbc.Col([
                 dbc.Card([
-                    dbc.CardHeader([
-                        dbc.Row([
-                            dbc.Col([
-                                html.H4("Team xG Difference per 90", className="mb-0"),
-                                html.Small("Test set: Jan–May 2016", className="text-muted")
-                            ], width="auto"),
-                            dbc.Col(
-                                dcc.Dropdown(
-                                    id='team-xg-model-dropdown',
-                                    options=[
-                                        {'label': 'Our Model', 'value': 'our_xg'},
-                                        {'label': 'StatsBomb', 'value': 'statsbomb_xg'}
-                                    ],
-                                    value='our_xg',
-                                    clearable=False,
-                                    style={'width': '140px'}
-                                ),
-                                width="auto",
-                                className="ms-auto"
-                            )
-                        ], align="center", className="g-0")
-                    ]),
+                    dbc.CardHeader(html.H5("Goals − xG (Attack)", className="mb-0")),
+                    dbc.CardBody([
+                        dcc.Graph(id='team-goals-scored-chart', config={'displayModeBar': False})
+                    ])
+                ], className="chart-card mb-4")
+            ], lg=4),
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardHeader(html.H5("xGA − Goals (Defense)", className="mb-0")),
+                    dbc.CardBody([
+                        dcc.Graph(id='team-goals-conceded-chart', config={'displayModeBar': False})
+                    ])
+                ], className="chart-card mb-4")
+            ], lg=4),
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardHeader(html.H5("xG Difference", className="mb-0")),
                     dbc.CardBody([
                         dcc.Graph(id='team-xg-diff-chart', config={'displayModeBar': False})
                     ])
                 ], className="chart-card mb-4")
-            ], lg=6),
+            ], lg=4),
         ]),
 
         # Spatial xG section
@@ -1560,11 +1659,27 @@ def update_xg_histogram(model):
 
 
 @callback(
-    Output('team-xg-diff-chart', 'figure'),
-    Input('team-xg-model-dropdown', 'value')
+    Output('team-goals-scored-chart', 'figure'),
+    Input('player-dropdown', 'value')  # Trigger on page load
 )
-def update_team_xg_diff_chart(xg_column):
-    return create_team_xg_diff_chart(xg_column)
+def update_team_goals_scored(_):
+    return create_team_goals_vs_xg_chart('our_xg', 'scored')
+
+
+@callback(
+    Output('team-goals-conceded-chart', 'figure'),
+    Input('player-dropdown', 'value')  # Trigger on page load
+)
+def update_team_goals_conceded(_):
+    return create_team_goals_vs_xg_chart('our_xg', 'conceded')
+
+
+@callback(
+    Output('team-xg-diff-chart', 'figure'),
+    Input('player-dropdown', 'value')  # Trigger on page load
+)
+def update_team_xg_diff_chart(_):
+    return create_team_xg_diff_chart('our_xg')
 
 
 @callback(
