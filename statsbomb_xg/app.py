@@ -1534,7 +1534,7 @@ app.layout = html.Div([
             ], lg=4),
             dbc.Col([
                 dbc.Card([
-                    dbc.CardHeader(html.H5("xGA − Goals (Defense)", className="mb-0")),
+                    dbc.CardHeader(html.H5("xGA − Goals (Defence)", className="mb-0")),
                     dbc.CardBody([
                         dcc.Graph(id='team-goals-conceded-chart', config={'displayModeBar': False})
                     ])
