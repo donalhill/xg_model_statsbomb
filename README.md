@@ -11,7 +11,7 @@ This project demonstrates:
 2. **Feature Engineering** - Distance, angle, GK positioning, defender proximity, goal visibility
 3. **Temporal Validation** - Train on Aug-Dec 2015, test on Jan-May 2016 (no data leakage)
 4. **Interactive Dashboard** - Dash app with model comparison, spatial analysis, and player breakdowns
-5. **SHAP Explainability** - Feature impact visualization
+5. **SHAP Explainability** - Feature impact visualisation
 
 ## Data
 
@@ -73,7 +73,7 @@ Near-parity with StatsBomb's xG. The small gap is expected given we train on onl
 - **Geometry**: Distance to goal, angle to goal
 - **Body part**: Header vs foot
 - **Context**: Counter attack, set piece, first time, under pressure
-- **GK position**: Distance from goal line, distance from center, positioning error
+- **GK position**: Distance from goal line, distance from centre, positioning error
 - **Defenders**: Nearest defender distance, nearest blocker distance, goal visible percentage
 
 ## Attribution

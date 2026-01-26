@@ -1,5 +1,5 @@
 """
-Dash application for xG model visualization.
+Dash application for xG model visualisation.
 """
 import json
 import base64

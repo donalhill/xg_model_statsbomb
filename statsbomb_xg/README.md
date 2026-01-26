@@ -26,7 +26,7 @@ statsbomb_xg/
 ├── features.py            # Feature engineering
 ├── model.py               # XGBoost training with calibration
 ├── evaluate.py            # Temporal validation, metrics, plots
-├── app.py                 # Dash visualization dashboard
+├── app.py                 # Dash visualisation dashboard
 ├── main.py                # Run full pipeline
 └── requirements.txt
 ```
@@ -38,12 +38,12 @@ statsbomb_xg/
 Following industry best practices (StatsBomb methodology), we use **continuous measures** rather than discrete counts:
 
 **Shot Geometry**
-- `distance_to_goal`: Euclidean distance from shot to goal center
+- `distance_to_goal`: Euclidean distance from shot to goal centre
 - `angle_to_goal`: Angle subtended by goal posts
 
 **Goalkeeper Position**
 - `gk_distance_from_goal_line`: How far GK is off their line
-- `gk_distance_from_center`: Lateral displacement from goal center
+- `gk_distance_from_center`: Lateral displacement from goal centre
 - `gk_positioning_error`: How far GK is from optimal position
 
 **Defender Position**
