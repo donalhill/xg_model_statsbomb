@@ -1566,7 +1566,7 @@ app.layout = html.Div([
                         )
                     ]),
                     dbc.CardBody([
-                        dcc.Graph(id='team-scatter-chart', config={'displayModeBar': False})
+                        dcc.Graph(id='team-scatter-chart', figure=create_team_scatter_chart('xg'), config={'displayModeBar': False})
                     ])
                 ], className="chart-card mb-4")
             ], lg=6),
@@ -1643,7 +1643,7 @@ app.layout = html.Div([
                                 html.Img(id='shot-map', style={'maxWidth': '100%', 'height': 'auto'})
                             ], lg=5, className="text-center"),
                             dbc.Col([
-                                dcc.Graph(id='cumulative-xg', config={'displayModeBar': False})
+                                dcc.Graph(id='cumulative-xg', figure=create_cumulative_xg_figure(top_players[0] if top_players else None), config={'displayModeBar': False})
                             ], lg=7)
                         ])
                     ])
