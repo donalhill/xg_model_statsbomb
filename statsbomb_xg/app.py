@@ -649,7 +649,7 @@ def create_calibration_figure():
 
     # Diagonal line (perfect calibration)
     fig.add_trace(go.Scatter(
-        x=[0, 0.7], y=[0, 0.7],
+        x=[0, 1], y=[0, 1],
         mode='lines',
         line=dict(color=COLORS['grid'], dash='dash', width=2),
         name='Perfect',
@@ -697,8 +697,8 @@ def create_calibration_figure():
     layout = get_chart_layout('Calibration (excl. penalties)', height=350)
     layout['xaxis']['title'] = 'Predicted xG (bin)'
     layout['yaxis']['title'] = 'Actual Conversion Rate'
-    layout['xaxis']['range'] = [0, 0.7]
-    layout['yaxis']['range'] = [0, 0.7]
+    layout['xaxis']['range'] = [0, 1]
+    layout['yaxis']['range'] = [0, 1]
     fig.update_layout(**layout)
 
     return fig
