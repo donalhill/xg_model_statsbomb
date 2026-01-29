@@ -447,11 +447,14 @@ def create_shap_summary_image():
     if shap_values is None or shap_data is None:
         return None
 
-    # Clear any existing figures to prevent contamination
+    # Aggressively clear all matplotlib state
     plt.close('all')
+    plt.clf()
 
-    # Create figure with updated styling
-    fig, ax = plt.subplots(figsize=(8, 6))
+    # Create fresh figure
+    fig = plt.figure(figsize=(8, 6))
+    ax = fig.add_subplot(111)
+    plt.sca(ax)  # Set as current axes for SHAP
 
     # Make feature names more readable
     feature_names = [f.replace('_', ' ').title() for f in FEATURE_COLUMNS]
@@ -464,20 +467,20 @@ def create_shap_summary_image():
         show=False,
         plot_size=None,
         color_bar_label='Feature Value',
-        cmap='RdBu_r'  # Diverging colormap (reversed)
+        cmap='RdBu_r'
     )
 
-    plt.title('', fontsize=12)  # Remove title - card header will have it
-    plt.xlabel('Impact on xG (SHAP value)', fontsize=10, color=COLORS['text_secondary'])
+    ax.set_title('')
+    ax.set_xlabel('Impact on xG (SHAP value)', fontsize=10, color=COLORS['text_secondary'])
     ax.tick_params(colors=COLORS['text_secondary'])
-    plt.tight_layout()
+    fig.tight_layout()
 
     # Convert to base64
     buffer = BytesIO()
-    plt.savefig(buffer, format='png', dpi=120, bbox_inches='tight', facecolor=COLORS['bg_card'])
+    fig.savefig(buffer, format='png', dpi=120, bbox_inches='tight', facecolor=COLORS['bg_card'])
     buffer.seek(0)
     img_base64 = base64.b64encode(buffer.read()).decode('utf-8')
-    plt.close('all')
+    plt.close(fig)
 
     return f'data:image/png;base64,{img_base64}'
 
@@ -674,9 +677,10 @@ def create_feature_distribution_figure(feature='distance_to_goal'):
     goals = train_df[train_df['is_goal'] == 1][feature]
     misses = train_df[train_df['is_goal'] == 0][feature]
 
-    # Determine bin range based on feature
+    # Determine shared bin edges for both classes
     all_vals = train_df[feature]
     min_val, max_val = all_vals.min(), all_vals.max()
+    bin_size = (max_val - min_val) / 25
 
     fig = go.Figure()
 
@@ -686,7 +690,7 @@ def create_feature_distribution_figure(feature='distance_to_goal'):
         name='Miss/Saved',
         marker_color='rgba(100, 116, 139, 0.6)',
         marker_line=dict(color='#475569', width=1),
-        nbinsx=25,
+        xbins=dict(start=min_val, end=max_val, size=bin_size),
         histnorm='percent'
     ))
 
@@ -697,7 +701,7 @@ def create_feature_distribution_figure(feature='distance_to_goal'):
         marker_color=COLORS['accent_secondary'],
         marker_line=dict(color=COLORS['accent_primary'], width=1),
         opacity=0.65,
-        nbinsx=25,
+        xbins=dict(start=min_val, end=max_val, size=bin_size),
         histnorm='percent'
     ))
 
