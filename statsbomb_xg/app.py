@@ -651,24 +651,27 @@ def create_calibration_figure():
     fig.add_trace(go.Scatter(
         x=[0, 1], y=[0, 1],
         mode='lines',
-        line=dict(color=COLORS['grid'], dash='dash', width=2),
+        line=dict(color=COLORS['chart_gray'], dash='dash', width=2),
         name='Perfect',
         showlegend=False
     ))
 
-    # Uniform 0.1 bins
-    bin_edges = np.arange(0, 0.8, 0.1)
+    # Uniform 0.1 bins (full range)
+    bin_edges = np.arange(0, 1.1, 0.1)
 
-    chi2_results = {}
+    # Track all points for axis range calculation
+    all_x = []
+    all_y_upper = []
 
     # Updated colors: blue for our model, gray for StatsBomb
     for xg_col, name, color in [
-        ('our_xg', 'Our Model', COLORS['accent_secondary']),
-        ('statsbomb_xg', 'StatsBomb', COLORS['chart_gray'])
+        ('our_xg', 'Our Model', '#7C3AED'),  # Purple
+        ('statsbomb_xg', 'StatsBomb', '#F97316')  # Orange
     ]:
         bin_centers = []
         conversion_rates = []
-        y_errors = []
+        y_errors_upper = []
+        y_errors_lower = []
 
         for i in range(len(bin_edges) - 1):
             bin_center = (bin_edges[i] + bin_edges[i + 1]) / 2
@@ -676,29 +679,41 @@ def create_calibration_figure():
             if i == len(bin_edges) - 2:
                 mask = (test_df[xg_col] >= bin_edges[i]) & (test_df[xg_col] <= bin_edges[i + 1])
             bucket = test_df[mask]
-            if len(bucket) >= 10:
+            if len(bucket) >= 8:
                 n = len(bucket)
                 p = bucket['is_goal'].mean()
                 se = np.sqrt(p * (1 - p) / n) if p > 0 and p < 1 else 0.01
 
+                # Asymmetric errors clamped to [0, 1]
+                err_upper = min(se, 1.0 - p)
+                err_lower = min(se, p)
+
                 bin_centers.append(bin_center)
                 conversion_rates.append(p)
-                y_errors.append(se)
+                y_errors_upper.append(err_upper)
+                y_errors_lower.append(err_lower)
+                all_x.append(bin_center)
+                all_y_upper.append(p + err_upper)
 
         fig.add_trace(go.Scatter(
             x=bin_centers,
             y=conversion_rates,
             mode='markers',
-            marker=dict(size=12, color=color, line=dict(color='white', width=1)),
-            error_y=dict(type='data', array=y_errors, color=color, thickness=2),
+            marker=dict(size=9, color=color, line=dict(color='white', width=1)),
+            error_y=dict(type='data', array=y_errors_upper, arrayminus=y_errors_lower,
+                        color=color, thickness=2),
             name=name
         ))
+
+    # Calculate axis range to fit all points and error bars
+    max_val = max(max(all_x), max(all_y_upper)) if all_x else 1
+    axis_max = min(1.0, max_val + 0.05)  # Add padding, cap at 1.0
 
     layout = get_chart_layout('Calibration (excl. penalties)', height=350)
     layout['xaxis']['title'] = 'Predicted xG (bin)'
     layout['yaxis']['title'] = 'Actual Conversion Rate'
-    layout['xaxis']['range'] = [0, 1]
-    layout['yaxis']['range'] = [0, 1]
+    layout['xaxis']['range'] = [0, axis_max]
+    layout['yaxis']['range'] = [0, axis_max]
     fig.update_layout(**layout)
 
     return fig
@@ -732,21 +747,21 @@ def create_roc_curve_figure():
         showlegend=False
     ))
 
-    # Our model - blue
+    # Our model - purple
     fig.add_trace(go.Scatter(
         x=fpr_ours, y=tpr_ours,
         mode='lines',
-        line=dict(color=COLORS['accent_secondary'], width=3),
+        line=dict(color='#7C3AED', width=3),
         name=f'Our Model (AUC={auc_ours:.3f})',
         fill='tozeroy',
-        fillcolor='rgba(37,99,235,0.1)'
+        fillcolor='rgba(124,58,237,0.1)'
     ))
 
-    # StatsBomb - gray
+    # StatsBomb - orange
     fig.add_trace(go.Scatter(
         x=fpr_sb, y=tpr_sb,
         mode='lines',
-        line=dict(color=COLORS['chart_gray'], width=2),
+        line=dict(color='#F97316', width=2),
         name=f'StatsBomb (AUC={auc_sb:.3f})'
     ))
 
@@ -1094,6 +1109,13 @@ def create_shot_map_image(player_name):
         fontsize=14, fontweight='600', color=COLORS['text_primary'], pad=10
     )
 
+    # Add xG colorbar
+    sm = plt.cm.ScalarMappable(cmap=cmap_shot, norm=plt.Normalize(vmin=0, vmax=0.5))
+    sm.set_array([])
+    cbar = fig.colorbar(sm, ax=ax, shrink=0.6, pad=0.02, aspect=20)
+    cbar.set_label('xG', fontsize=10, color=COLORS['text_primary'])
+    cbar.ax.tick_params(labelsize=8, colors=COLORS['text_secondary'])
+
     # Legend with updated styling (viridis colors)
     ax.scatter([], [], c='#31688e', s=80, marker='o',
                edgecolors=COLORS['text_secondary'], label='Miss/Saved')
@@ -1219,17 +1241,17 @@ def create_team_bar_chart(metric='xg_diff'):
     teams = [t[0] for t in sorted_teams]
     values = [t[1] for t in sorted_teams]
 
-    # Create colors
+    # Create colors (RdGn diverging: green for good, red for bad)
     max_abs = max(abs(min(values)), abs(max(values))) if values else 1
     colors = []
     for val in values:
         norm = val / max_abs if max_abs > 0 else 0
         if norm >= 0:
             intensity = norm
-            colors.append(f'rgba(37, 99, 235, {0.4 + 0.6 * intensity})')
+            colors.append(f'rgba(34, 197, 94, {0.4 + 0.6 * intensity})')  # Green
         else:
             intensity = -norm
-            colors.append(f'rgba(239, 68, 68, {0.4 + 0.6 * intensity})')
+            colors.append(f'rgba(239, 68, 68, {0.4 + 0.6 * intensity})')  # Red
 
     fig = go.Figure()
 
