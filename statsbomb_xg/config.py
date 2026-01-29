@@ -11,30 +11,14 @@ SEASON_ID = 27       # 2015/16
 TRAIN_END_DATE = "2016-01-01"
 
 # Feature columns for model
-# Removed redundant features:
-#   - is_foot (r=-0.99 with is_header)
-#   - gk_distance_to_shot (r=0.96 with distance_to_goal)
-#   - is_open_play (r=-0.89 with is_set_piece; open play is implicit baseline)
+# Minimal set based on SHAP analysis - only features with meaningful impact
 FEATURE_COLUMNS = [
-    # Shot geometry
-    'distance_to_goal',
-    'angle_to_goal',
-    # Body part (is_header=0 implies foot)
-    'is_header',
-    # Shot context (open play is implicit when all are 0)
-    'is_counter',
-    'is_set_piece',
-    'is_penalty',
-    'is_first_time',
-    'under_pressure',
-    # Goalkeeper position (continuous)
-    'gk_distance_from_goal_line',
-    'gk_distance_from_center',
-    'gk_positioning_error',
-    # Defender position (continuous)
-    'dist_nearest_defender',
-    'dist_nearest_blocker',
-    'goal_visible_pct',
+    'distance_to_goal',       # Shot geometry - dominant feature
+    'angle_to_goal',          # Shot geometry - second most important
+    'is_header',              # Body part - clear negative effect on xG
+    'gk_distance_from_goal_line',  # GK position - captures 1v1 situations
+    'dist_nearest_defender',  # Defensive pressure
+    'goal_visible_pct',       # Goal visibility accounting for blockers
 ]
 
 # Directories
