@@ -17,7 +17,6 @@ FEATURE_COLUMNS = [
     'angle_to_goal',          # Shot geometry - second most important
     'is_header',              # Body part - clear negative effect on xG
     'gk_distance_from_goal_line',  # GK position - captures 1v1 situations
-    'dist_nearest_defender',  # Defensive pressure
     'goal_visible_pct',       # Goal visibility accounting for blockers
 ]
 

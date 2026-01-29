@@ -50,6 +50,15 @@ COLORS = {
     'grid': '#E2E8F0',
 }
 
+# Clean feature labels for display
+FEATURE_LABELS = {
+    'distance_to_goal': 'Distance To Goal (m)',
+    'angle_to_goal': 'Visible Goal Angle (°)',
+    'is_header': 'Is Header',
+    'gk_distance_from_goal_line': 'GK Distance From Goal (m)',
+    'goal_visible_pct': 'Goal Visibility (0-1)',
+}
+
 # Custom CSS for the dashboard
 CUSTOM_CSS = """
 /* CSS Custom Properties */
@@ -447,17 +456,14 @@ def create_shap_summary_image():
     if shap_values is None or shap_data is None:
         return None
 
-    # Aggressively clear all matplotlib state
+    # Clear any existing figures to prevent contamination
     plt.close('all')
-    plt.clf()
 
-    # Create fresh figure
-    fig = plt.figure(figsize=(8, 6))
-    ax = fig.add_subplot(111)
-    plt.sca(ax)  # Set as current axes for SHAP
+    # Create figure with updated styling
+    fig, ax = plt.subplots(figsize=(8, 6))
 
-    # Make feature names more readable
-    feature_names = [f.replace('_', ' ').title() for f in FEATURE_COLUMNS]
+    # Use consistent feature labels
+    feature_names = [FEATURE_LABELS.get(f, f.replace('_', ' ').title()) for f in FEATURE_COLUMNS]
 
     # Create SHAP summary plot with diverging colormap
     shap.summary_plot(
@@ -467,22 +473,168 @@ def create_shap_summary_image():
         show=False,
         plot_size=None,
         color_bar_label='Feature Value',
-        cmap='RdBu_r'
+        cmap='RdBu_r'  # Diverging colormap (reversed)
     )
 
-    ax.set_title('')
-    ax.set_xlabel('Impact on xG (SHAP value)', fontsize=10, color=COLORS['text_secondary'])
+    plt.title('', fontsize=12)  # Remove title - card header will have it
+    plt.xlabel('Impact on xG (SHAP value)', fontsize=10, color=COLORS['text_secondary'])
     ax.tick_params(colors=COLORS['text_secondary'])
-    fig.tight_layout()
+    plt.tight_layout()
 
     # Convert to base64
     buffer = BytesIO()
-    fig.savefig(buffer, format='png', dpi=120, bbox_inches='tight', facecolor=COLORS['bg_card'])
+    plt.savefig(buffer, format='png', dpi=120, bbox_inches='tight', facecolor=COLORS['bg_card'])
     buffer.seek(0)
     img_base64 = base64.b64encode(buffer.read()).decode('utf-8')
-    plt.close(fig)
+    plt.close('all')
 
     return f'data:image/png;base64,{img_base64}'
+
+
+def create_correlation_matrix_figure():
+    """Create feature correlation matrix heatmap."""
+    if not DATA_LOADED:
+        return go.Figure()
+
+    # Use training set
+    train_df = df[df['match_date'] < '2016-01-01']
+
+    # Get feature correlations
+    corr = train_df[FEATURE_COLUMNS].corr()
+
+    # Use nice labels
+    labels = [FEATURE_LABELS.get(f, f) for f in FEATURE_COLUMNS]
+
+    fig = go.Figure(data=go.Heatmap(
+        z=corr.values,
+        x=labels,
+        y=labels,
+        colorscale='RdBu_r',
+        zmid=0,
+        zmin=-1,
+        zmax=1,
+        text=np.round(corr.values, 2),
+        texttemplate='%{text}',
+        textfont=dict(size=10),
+        hovertemplate='%{x}<br>%{y}<br>Correlation: %{z:.2f}<extra></extra>',
+        colorbar=dict(
+            title=dict(text='Corr', side='right'),
+            tickvals=[-1, -0.5, 0, 0.5, 1],
+        )
+    ))
+
+    layout = get_chart_layout('', height=350)
+    layout['xaxis']['tickangle'] = 45
+    layout['xaxis']['tickfont'] = dict(size=8)
+    layout['yaxis']['tickfont'] = dict(size=8)
+    layout['yaxis']['scaleanchor'] = 'x'  # Make it square
+    layout['margin'] = dict(l=120, r=50, t=20, b=100)
+    fig.update_layout(**layout)
+
+    return fig
+
+
+def create_feature_distribution_figure(feature='distance_to_goal'):
+    """Create histogram showing feature distribution for goals vs non-goals (training set).
+
+    Uses Plotly (not matplotlib) so won't interfere with SHAP/mplsoccer.
+    """
+    if not DATA_LOADED:
+        return go.Figure()
+
+    # Use training set, exclude penalties
+    train_df = df[(df['match_date'] < '2016-01-01') & (df['is_penalty'] == 0)]
+
+    if feature not in train_df.columns:
+        return go.Figure()
+
+    feature_label = FEATURE_LABELS.get(feature, feature.replace('_', ' ').title())
+    fig = go.Figure()
+
+    # Handle binary features (like is_header) with grouped bar chart
+    if feature == 'is_header':
+        # Calculate percentages for each class
+        goal_pct = train_df[train_df['is_goal'] == 1][feature].value_counts(normalize=True) * 100
+        miss_pct = train_df[train_df['is_goal'] == 0][feature].value_counts(normalize=True) * 100
+
+        categories = ['Foot/Body', 'Header']
+
+        fig.add_trace(go.Bar(
+            x=categories,
+            y=[miss_pct.get(0, 0), miss_pct.get(1, 0)],
+            name='Miss/Saved',
+            marker_color='rgba(100, 116, 139, 0.7)',
+            marker_line=dict(color='#475569', width=1),
+        ))
+
+        fig.add_trace(go.Bar(
+            x=categories,
+            y=[goal_pct.get(0, 0), goal_pct.get(1, 0)],
+            name='Goal',
+            marker_color=COLORS['accent_secondary'],
+            marker_line=dict(color=COLORS['accent_primary'], width=1),
+        ))
+
+        layout = get_chart_layout(f'{feature_label} (Training Set)', height=300)
+        layout['xaxis']['title'] = ''
+        layout['yaxis']['title'] = 'Percentage (%)'
+        layout['barmode'] = 'group'
+        layout['margin'] = dict(l=50, r=30, t=40, b=70)
+        layout['legend'] = dict(x=0.5, y=-0.25, xanchor='center', orientation='h',
+                               bgcolor='rgba(255,255,255,0.9)',
+                               bordercolor=COLORS['border'], borderwidth=1)
+        fig.update_layout(**layout)
+        return fig
+
+    # For continuous features
+    goals = train_df[train_df['is_goal'] == 1][feature]
+    misses = train_df[train_df['is_goal'] == 0][feature]
+
+    # Clip extreme values for GK distance (>15m is very rare)
+    if feature == 'gk_distance_from_goal_line':
+        goals = goals.clip(upper=15)
+        misses = misses.clip(upper=15)
+        all_vals = train_df[feature].clip(upper=15)
+    else:
+        all_vals = train_df[feature]
+
+    # Calculate shared bin edges for both classes (ensures equal bins)
+    min_val, max_val = all_vals.min(), all_vals.max()
+    n_bins = 25
+    bin_size = (max_val - min_val) / n_bins
+
+    # Histogram for misses - use explicit xbins for consistent binning
+    fig.add_trace(go.Histogram(
+        x=misses,
+        name='Miss/Saved',
+        marker_color='rgba(100, 116, 139, 0.6)',
+        marker_line=dict(color='#475569', width=1),
+        xbins=dict(start=min_val, end=max_val, size=bin_size),
+        histnorm='percent'
+    ))
+
+    # Histogram for goals - same xbins
+    fig.add_trace(go.Histogram(
+        x=goals,
+        name='Goal',
+        marker_color=COLORS['accent_secondary'],
+        marker_line=dict(color=COLORS['accent_primary'], width=1),
+        opacity=0.65,
+        xbins=dict(start=min_val, end=max_val, size=bin_size),
+        histnorm='percent'
+    ))
+
+    layout = get_chart_layout(f'{feature_label} (Training Set)', height=300)
+    layout['xaxis']['title'] = feature_label
+    layout['yaxis']['title'] = 'Percentage (%)'
+    layout['barmode'] = 'overlay'
+    layout['margin'] = dict(l=50, r=30, t=40, b=70)
+    layout['legend'] = dict(x=0.5, y=-0.25, xanchor='center', orientation='h',
+                           bgcolor='rgba(255,255,255,0.9)',
+                           bordercolor=COLORS['border'], borderwidth=1)
+    fig.update_layout(**layout)
+
+    return fig
 
 
 def create_calibration_figure():
@@ -533,19 +685,13 @@ def create_calibration_figure():
                 conversion_rates.append(p)
                 y_errors.append(se)
 
-        chi2 = sum(((obs - exp) ** 2) / (err ** 2)
-                   for obs, exp, err in zip(conversion_rates, bin_centers, y_errors) if err > 0)
-        dof = len(bin_centers)
-        chi2_dof = chi2 / dof if dof > 0 else 0
-        chi2_results[name] = chi2_dof
-
         fig.add_trace(go.Scatter(
             x=bin_centers,
             y=conversion_rates,
             mode='markers',
             marker=dict(size=12, color=color, line=dict(color='white', width=1)),
             error_y=dict(type='data', array=y_errors, color=color, thickness=2),
-            name=f"{name} (χ²/dof={chi2_dof:.2f})"
+            name=name
         ))
 
     layout = get_chart_layout('Calibration (excl. penalties)', height=350)
@@ -656,61 +802,6 @@ def create_xg_histogram_figure(model='our_xg'):
     layout['yaxis']['title'] = 'Percentage (%)'
     layout['xaxis']['range'] = [0, 1]
     layout['barmode'] = 'overlay'
-    layout['legend'] = dict(x=0.7, y=0.95, bgcolor='rgba(255,255,255,0.9)',
-                           bordercolor=COLORS['border'], borderwidth=1)
-    fig.update_layout(**layout)
-
-    return fig
-
-
-def create_feature_distribution_figure(feature='distance_to_goal'):
-    """Create histogram showing feature distribution for goals vs non-goals (training set)."""
-    if not DATA_LOADED:
-        return go.Figure()
-
-    # Use training set, exclude penalties
-    train_df = df[(df['match_date'] < '2016-01-01') & (df['is_penalty'] == 0)]
-
-    if feature not in train_df.columns:
-        return go.Figure()
-
-    goals = train_df[train_df['is_goal'] == 1][feature]
-    misses = train_df[train_df['is_goal'] == 0][feature]
-
-    # Determine shared bin edges for both classes
-    all_vals = train_df[feature]
-    min_val, max_val = all_vals.min(), all_vals.max()
-    bin_size = (max_val - min_val) / 25
-
-    fig = go.Figure()
-
-    # Histogram for misses
-    fig.add_trace(go.Histogram(
-        x=misses,
-        name='Miss/Saved',
-        marker_color='rgba(100, 116, 139, 0.6)',
-        marker_line=dict(color='#475569', width=1),
-        xbins=dict(start=min_val, end=max_val, size=bin_size),
-        histnorm='percent'
-    ))
-
-    # Histogram for goals
-    fig.add_trace(go.Histogram(
-        x=goals,
-        name='Goal',
-        marker_color=COLORS['accent_secondary'],
-        marker_line=dict(color=COLORS['accent_primary'], width=1),
-        opacity=0.65,
-        xbins=dict(start=min_val, end=max_val, size=bin_size),
-        histnorm='percent'
-    ))
-
-    feature_label = feature.replace('_', ' ').title()
-    layout = get_chart_layout(f'{feature_label} Distribution', height=300)
-    layout['xaxis']['title'] = feature_label
-    layout['yaxis']['title'] = 'Percentage (%)'
-    layout['barmode'] = 'overlay'
-    layout['margin'] = dict(l=50, r=30, t=40, b=50)
     layout['legend'] = dict(x=0.7, y=0.95, bgcolor='rgba(255,255,255,0.9)',
                            bordercolor=COLORS['border'], borderwidth=1)
     fig.update_layout(**layout)
@@ -1008,8 +1099,8 @@ def create_shot_map_image(player_name):
                edgecolors=COLORS['text_secondary'], label='Miss/Saved')
     ax.scatter([], [], c='#fde725', s=150, marker='*',
                edgecolors=COLORS['text_primary'], linewidth=1.5, label='Goal')
-    ax.legend(loc='lower right', facecolor=pitch_color, edgecolor=COLORS['border'],
-              labelcolor=COLORS['text_primary'], fontsize=10)
+    ax.legend(loc='center left', bbox_to_anchor=(0.08, 0.18), facecolor=pitch_color,
+              edgecolor=COLORS['border'], labelcolor=COLORS['text_primary'], fontsize=10)
 
     fig.patch.set_facecolor(pitch_color)
 
@@ -1264,13 +1355,51 @@ def create_cumulative_xg_figure(player_name):
     # Sort by date
     player_df = player_df.sort_values('match_date')
 
-    cumulative_goals = player_df['is_goal'].cumsum()
-    cumulative_xg = player_df['our_xg'].cumsum()
-    cumulative_sb_xg = player_df['statsbomb_xg'].cumsum()
+    cumulative_goals = player_df['is_goal'].cumsum().values
+    cumulative_xg = player_df['our_xg'].cumsum().values
+    cumulative_sb_xg = player_df['statsbomb_xg'].cumsum().values
 
     fig = go.Figure()
 
     shots = list(range(1, len(player_df) + 1))
+
+    # Create shaded regions for over/under performance
+    # Green fill where goals > xG (overperformance)
+    over_y = np.maximum(cumulative_goals, cumulative_xg)
+    fig.add_trace(go.Scatter(
+        x=shots, y=over_y,
+        mode='lines', line=dict(width=0),
+        showlegend=False, hoverinfo='skip'
+    ))
+    fig.add_trace(go.Scatter(
+        x=shots, y=cumulative_xg,
+        mode='lines', line=dict(width=0),
+        fill='tonexty', fillcolor='rgba(16, 185, 129, 0.25)',
+        showlegend=False, hoverinfo='skip'
+    ))
+
+    # Red fill where goals < xG (underperformance)
+    under_y = np.minimum(cumulative_goals, cumulative_xg)
+    fig.add_trace(go.Scatter(
+        x=shots, y=cumulative_xg,
+        mode='lines', line=dict(width=0),
+        showlegend=False, hoverinfo='skip'
+    ))
+    fig.add_trace(go.Scatter(
+        x=shots, y=under_y,
+        mode='lines', line=dict(width=0),
+        fill='tonexty', fillcolor='rgba(239, 68, 68, 0.25)',
+        showlegend=False, hoverinfo='skip'
+    ))
+
+    # Our xG - blue line
+    fig.add_trace(go.Scatter(
+        x=shots,
+        y=cumulative_xg,
+        mode='lines',
+        name='Our xG',
+        line=dict(color=COLORS['accent_secondary'], width=2)
+    ))
 
     # Actual goals - dark slate, thicker line
     fig.add_trace(go.Scatter(
@@ -1279,17 +1408,6 @@ def create_cumulative_xg_figure(player_name):
         mode='lines',
         name='Actual Goals',
         line=dict(color=COLORS['text_primary'], width=3)
-    ))
-
-    # Our xG - blue
-    fig.add_trace(go.Scatter(
-        x=shots,
-        y=cumulative_xg,
-        mode='lines',
-        name='Our xG',
-        line=dict(color=COLORS['accent_secondary'], width=2),
-        fill='tonexty',
-        fillcolor='rgba(37,99,235,0.1)'
     ))
 
     # StatsBomb xG - gray dashed
@@ -1344,6 +1462,12 @@ else:
         'train_shots': 0, 'train_goals': 0, 'test_shots': 0, 'test_goals': 0
     }
 
+# Generate SHAP image ONCE at startup (before any other matplotlib operations)
+# This prevents matplotlib state contamination from callbacks
+print("Generating SHAP image...")
+SHAP_IMAGE = create_shap_summary_image() if DATA_LOADED else None
+print("SHAP image generated.")
+
 # Get unique player names for dropdown, ranked by xG overperformance (TEST SET ONLY)
 if DATA_LOADED:
     test_df = df[df['match_date'] >= '2016-01-01']
@@ -1367,72 +1491,11 @@ else:
     top_players = []
     player_options = []
 
-
 # Feature options for dropdown
 feature_options = [
-    {'label': f.replace('_', ' ').title(), 'value': f}
+    {'label': FEATURE_LABELS.get(f, f.replace('_', ' ').title()), 'value': f}
     for f in FEATURE_COLUMNS
 ]
-
-
-# Create model summary content
-def create_model_summary():
-    """Create model summary section with modern styling."""
-    if not metrics:
-        return html.P("No metrics available. Run main.py first.", className="text-muted")
-
-    return dbc.Row([
-        # Feature distribution chart with dropdown
-        dbc.Col([
-            html.Div([
-                html.Span("Feature Distribution", className="section-header",
-                         style={'display': 'inline-block', 'marginRight': '1rem'}),
-                dcc.Dropdown(
-                    id='feature-dist-dropdown',
-                    options=feature_options,
-                    value='distance_to_goal',
-                    clearable=False,
-                    style={'width': '200px', 'display': 'inline-block', 'verticalAlign': 'middle'}
-                )
-            ], style={'marginBottom': '0.5rem'}),
-            dcc.Graph(id='feature-dist-chart',
-                     figure=create_feature_distribution_figure('distance_to_goal'),
-                     config={'displayModeBar': False})
-        ], md=6),
-        # Performance metrics as mini stat cards
-        dbc.Col([
-            html.Div("Test Performance", className="section-header"),
-            dbc.Row([
-                dbc.Col([
-                    html.Div([
-                        html.Div(f"{metrics.get('roc_auc', 0):.2f}", className="stat-value",
-                                style={'fontSize': '1.25rem', 'whiteSpace': 'nowrap'}),
-                        html.Div("AUC", className="stat-label")
-                    ], className="stat-card", style={'padding': '0.5rem'})
-                ], width=4),
-                dbc.Col([
-                    html.Div([
-                        html.Div(f"{metrics.get('brier', 0):.3f}", className="stat-value",
-                                style={'fontSize': '1.25rem', 'whiteSpace': 'nowrap'}),
-                        html.Div("Brier", className="stat-label")
-                    ], className="stat-card", style={'padding': '0.5rem'})
-                ], width=4),
-                dbc.Col([
-                    html.Div([
-                        html.Div(f"{metrics.get('log_loss', 0):.2f}", className="stat-value",
-                                style={'fontSize': '1.25rem', 'whiteSpace': 'nowrap'}),
-                        html.Div("LogLoss", className="stat-label", style={'whiteSpace': 'nowrap'})
-                    ], className="stat-card", style={'padding': '0.5rem'})
-                ], width=4),
-            ], className="g-2 mb-2"),
-            html.Div([
-                html.Span(f"{metrics.get('n_shots', 0):,} shots", className="hero-badge"),
-                html.Span(f"{metrics.get('n_goals', 0):,} goals", className="hero-badge"),
-                html.Span(f"{metrics.get('n_goals', 0)/metrics.get('n_shots', 1):.1%} conv.",
-                         className="hero-badge")
-            ], style={'textAlign': 'center', 'marginTop': '0.5rem'})
-        ], md=6),
-    ])
 
 
 # App layout with modern design
@@ -1512,34 +1575,91 @@ app.layout = html.Div([
             ])
         ]),
 
-        # Model summary section
+        # Feature Analysis section - three equal columns
         dbc.Row([
             dbc.Col([
                 dbc.Card([
-                    dbc.CardHeader(html.H4("Model Summary", className="mb-0")),
-                    dbc.CardBody(create_model_summary())
-                ], className="chart-card mb-4")
-            ], lg=7),
-            dbc.Col([
-                dbc.Card([
-                    dbc.CardHeader(html.H4("SHAP Feature Impact", className="mb-0")),
+                    dbc.CardHeader(html.H4("Feature Analysis", className="mb-0")),
                     dbc.CardBody([
-                        html.Img(
-                            id='shap-image',
-                            style={'maxWidth': '100%', 'height': 'auto'},
-                            className="mx-auto d-block"
-                        ) if DATA_LOADED else html.P("SHAP analysis not available.",
-                                                      className="text-muted")
-                    ], className="py-2")
+                        dbc.Row([
+                            # Feature Distribution
+                            dbc.Col([
+                                html.Div([
+                                    html.Label("Distribution", style={
+                                        'fontSize': '0.75rem',
+                                        'color': COLORS['text_secondary'],
+                                        'textTransform': 'uppercase',
+                                        'letterSpacing': '0.05em',
+                                        'marginBottom': '0.25rem',
+                                        'display': 'block'
+                                    }),
+                                    dcc.Dropdown(
+                                        id='feature-dist-dropdown',
+                                        options=feature_options,
+                                        value='distance_to_goal',
+                                        clearable=False,
+                                        style={'marginBottom': '0.5rem'}
+                                    )
+                                ]),
+                                dcc.Graph(id='feature-dist-chart',
+                                         figure=create_feature_distribution_figure('distance_to_goal'),
+                                         config={'displayModeBar': False})
+                            ], lg=4),
+                            # SHAP
+                            dbc.Col([
+                                html.Label("SHAP Impact", style={
+                                    'fontSize': '0.75rem',
+                                    'color': COLORS['text_secondary'],
+                                    'textTransform': 'uppercase',
+                                    'letterSpacing': '0.05em',
+                                    'marginBottom': '0.5rem',
+                                    'display': 'block'
+                                }),
+                                html.Img(
+                                    src=SHAP_IMAGE,
+                                    style={'maxWidth': '100%', 'height': 'auto'},
+                                    className="mx-auto d-block"
+                                ) if SHAP_IMAGE else html.P("SHAP not available.", className="text-muted")
+                            ], lg=4),
+                            # Correlations
+                            dbc.Col([
+                                html.Label("Correlations", style={
+                                    'fontSize': '0.75rem',
+                                    'color': COLORS['text_secondary'],
+                                    'textTransform': 'uppercase',
+                                    'letterSpacing': '0.05em',
+                                    'marginBottom': '0.5rem',
+                                    'display': 'block'
+                                }),
+                                dcc.Graph(figure=create_correlation_matrix_figure(),
+                                         config={'displayModeBar': False})
+                            ], lg=4),
+                        ])
+                    ])
                 ], className="chart-card mb-4")
-            ], lg=5),
+            ])
         ]),
 
-        # Model comparison section
+        # Model Performance section
         dbc.Row([
             dbc.Col([
                 dbc.Card([
-                    dbc.CardHeader(html.H4("Model Comparison", className="mb-0")),
+                    dbc.CardHeader([
+                        html.Div([
+                            html.H4("Model Performance", className="mb-0 d-inline"),
+                            html.Div([
+                                html.Span([
+                                    html.Strong("AUC: "), f"{metrics.get('roc_auc', 0):.3f}"
+                                ], className="hero-badge", style={'marginLeft': '1rem'}),
+                                html.Span([
+                                    html.Strong("Brier: "), f"{metrics.get('brier', 0):.3f}"
+                                ], className="hero-badge"),
+                                html.Span([
+                                    html.Strong("LogLoss: "), f"{metrics.get('log_loss', 0):.3f}"
+                                ], className="hero-badge"),
+                            ], className="d-inline")
+                        ], className="d-flex align-items-center flex-wrap")
+                    ]),
                     dbc.CardBody([
                         dbc.Row([
                             dbc.Col([
@@ -1805,16 +1925,6 @@ def update_player_stats(player_name):
             for label, value, color_class in stat_items
         ], className="player-stats-row")
     ])
-
-
-@callback(
-    Output('shap-image', 'src'),
-    Input('player-dropdown', 'value'),  # Triggers after page load
-    prevent_initial_call=False
-)
-def update_shap_image(_):
-    """Load SHAP image lazily after page renders."""
-    return create_shap_summary_image()
 
 
 def run_app(debug=True, port=8050):
