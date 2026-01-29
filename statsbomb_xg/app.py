@@ -660,6 +660,60 @@ def create_xg_histogram_figure(model='our_xg'):
     return fig
 
 
+def create_feature_distribution_figure(feature='distance_to_goal'):
+    """Create histogram showing feature distribution for goals vs non-goals (training set)."""
+    if not DATA_LOADED:
+        return go.Figure()
+
+    # Use training set, exclude penalties
+    train_df = df[(df['match_date'] < '2016-01-01') & (df['is_penalty'] == 0)]
+
+    if feature not in train_df.columns:
+        return go.Figure()
+
+    goals = train_df[train_df['is_goal'] == 1][feature]
+    misses = train_df[train_df['is_goal'] == 0][feature]
+
+    # Determine bin range based on feature
+    all_vals = train_df[feature]
+    min_val, max_val = all_vals.min(), all_vals.max()
+
+    fig = go.Figure()
+
+    # Histogram for misses
+    fig.add_trace(go.Histogram(
+        x=misses,
+        name='Miss/Saved',
+        marker_color='rgba(100, 116, 139, 0.6)',
+        marker_line=dict(color='#475569', width=1),
+        nbinsx=25,
+        histnorm='percent'
+    ))
+
+    # Histogram for goals
+    fig.add_trace(go.Histogram(
+        x=goals,
+        name='Goal',
+        marker_color=COLORS['accent_secondary'],
+        marker_line=dict(color=COLORS['accent_primary'], width=1),
+        opacity=0.65,
+        nbinsx=25,
+        histnorm='percent'
+    ))
+
+    feature_label = feature.replace('_', ' ').title()
+    layout = get_chart_layout(f'{feature_label} Distribution', height=300)
+    layout['xaxis']['title'] = feature_label
+    layout['yaxis']['title'] = 'Percentage (%)'
+    layout['barmode'] = 'overlay'
+    layout['margin'] = dict(l=50, r=30, t=40, b=50)
+    layout['legend'] = dict(x=0.7, y=0.95, bgcolor='rgba(255,255,255,0.9)',
+                           bordercolor=COLORS['border'], borderwidth=1)
+    fig.update_layout(**layout)
+
+    return fig
+
+
 def _compute_smoothed_xg_grid(test_df, xg_col):
     """Compute smoothed xG grid - same logic as create_spatial_xg_image."""
     x_bins = np.linspace(60, 120, 21)
@@ -1310,48 +1364,36 @@ else:
     player_options = []
 
 
+# Feature options for dropdown
+feature_options = [
+    {'label': f.replace('_', ' ').title(), 'value': f}
+    for f in FEATURE_COLUMNS
+]
+
+
 # Create model summary content
 def create_model_summary():
     """Create model summary section with modern styling."""
     if not metrics:
         return html.P("No metrics available. Run main.py first.", className="text-muted")
 
-    # Get feature importance sorted
-    feat_imp = metrics.get('feature_importance', {})
-    sorted_features = sorted(feat_imp.items(), key=lambda x: x[1], reverse=True)
-    max_imp = sorted_features[0][1] if sorted_features else 1
-
-    # Create feature bars
-    feature_bars = []
-    for feat, imp in sorted_features[:6]:
-        feature_bars.append(
-            html.Div([
-                html.Div([
-                    html.Span(feat.replace('_', ' ').title(), className="feature-bar-label"),
-                    html.Span(f"{imp:.1%}", className="feature-bar-label",
-                             style={'float': 'right', 'color': COLORS['accent_secondary']})
-                ]),
-                html.Div([
-                    html.Div(style={
-                        'width': f"{(imp / max_imp) * 100}%",
-                        'height': '8px',
-                        'background': f"linear-gradient(90deg, {COLORS['accent_primary']}, {COLORS['accent_secondary']})",
-                        'borderRadius': '4px',
-                        'transition': 'width 0.3s ease'
-                    })
-                ], style={
-                    'background': COLORS['border'],
-                    'borderRadius': '4px',
-                    'overflow': 'hidden'
-                })
-            ], className="feature-bar-container", style={'marginBottom': '0.5rem'})
-        )
-
     return dbc.Row([
-        # Features with visual bars
+        # Feature distribution chart with dropdown
         dbc.Col([
-            html.Div("Top Features", className="section-header"),
-            html.Div(feature_bars)
+            html.Div([
+                html.Span("Feature Distribution", className="section-header",
+                         style={'display': 'inline-block', 'marginRight': '1rem'}),
+                dcc.Dropdown(
+                    id='feature-dist-dropdown',
+                    options=feature_options,
+                    value='distance_to_goal',
+                    clearable=False,
+                    style={'width': '200px', 'display': 'inline-block', 'verticalAlign': 'middle'}
+                )
+            ], style={'marginBottom': '0.5rem'}),
+            dcc.Graph(id='feature-dist-chart',
+                     figure=create_feature_distribution_figure('distance_to_goal'),
+                     config={'displayModeBar': False})
         ], md=6),
         # Performance metrics as mini stat cards
         dbc.Col([
@@ -1684,6 +1726,14 @@ app.layout = html.Div([
 )
 def update_xg_histogram(model):
     return create_xg_histogram_figure(model)
+
+
+@callback(
+    Output('feature-dist-chart', 'figure'),
+    Input('feature-dist-dropdown', 'value')
+)
+def update_feature_distribution(feature):
+    return create_feature_distribution_figure(feature)
 
 
 @callback(
