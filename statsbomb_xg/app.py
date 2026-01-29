@@ -351,25 +351,35 @@ _shap_cache = {'values': None, 'data': None, 'computed': False}
 
 
 def _compute_shap_values():
-    """Compute SHAP values lazily (only when needed)."""
+    """Load pre-computed SHAP values from disk, or compute if not available."""
     if _shap_cache['computed']:
         return _shap_cache['values'], _shap_cache['data']
 
+    # Try to load pre-computed SHAP values
+    shap_path = MODEL_DIR / 'shap_values.npz'
+    if shap_path.exists():
+        try:
+            print("Loading pre-computed SHAP values...")
+            data = np.load(shap_path, allow_pickle=True)
+            _shap_cache['values'] = data['shap_values']
+            _shap_cache['data'] = data['feature_data']
+            _shap_cache['computed'] = True
+            print("SHAP values loaded.")
+            return _shap_cache['values'], _shap_cache['data']
+        except Exception as e:
+            print(f"Could not load SHAP values: {e}")
+
+    # Fall back to computing if pre-computed not available
     if not DATA_LOADED or model is None:
         _shap_cache['computed'] = True
         return None, None
 
     try:
         print("Computing SHAP values...")
-        # Get test data
         test_df = df[df['match_date'] >= '2016-01-01']
         X_test = test_df[FEATURE_COLUMNS]
 
-        # Extract base XGBoost estimator from CalibratedClassifierCV
         base_model = model.calibrated_classifiers_[0].estimator
-
-        # Compute SHAP values using TreeExplainer (raw log-odds output)
-        import numpy as np
         explainer = shap.TreeExplainer(base_model)
         _shap_cache['values'] = explainer.shap_values(np.asarray(X_test))
         _shap_cache['data'] = X_test
@@ -1514,7 +1524,7 @@ app.layout = html.Div([
                                         style={'marginBottom': '10px'}
                                     ),
                                 ], style={'marginBottom': '0.5rem'}),
-                                dcc.Graph(id='xg-histogram', config={'displayModeBar': False})
+                                dcc.Graph(id='xg-histogram', figure=create_xg_histogram_figure('our_xg'), config={'displayModeBar': False})
                             ], lg=4),
                         ])
                     ])
@@ -1547,7 +1557,7 @@ app.layout = html.Div([
                         )
                     ]),
                     dbc.CardBody([
-                        dcc.Graph(id='team-bar-chart', config={'displayModeBar': False})
+                        dcc.Graph(id='team-bar-chart', figure=create_team_bar_chart('xg_diff'), config={'displayModeBar': False})
                     ])
                 ], className="chart-card mb-4")
             ], lg=6),
@@ -1640,7 +1650,7 @@ app.layout = html.Div([
                         ], className="mb-4"),
                         dbc.Row([
                             dbc.Col([
-                                html.Img(id='shot-map', style={'maxWidth': '100%', 'height': 'auto'})
+                                html.Img(id='shot-map', src=create_shot_map_image(top_players[0] if top_players else None), style={'maxWidth': '100%', 'height': 'auto'})
                             ], lg=5, className="text-center"),
                             dbc.Col([
                                 dcc.Graph(id='cumulative-xg', figure=create_cumulative_xg_figure(top_players[0] if top_players else None), config={'displayModeBar': False})
